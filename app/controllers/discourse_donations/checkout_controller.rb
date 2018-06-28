@@ -1,11 +1,7 @@
 require_dependency 'discourse'
 
 module DiscourseDonations
-  class CheckoutController < ActionController::Base
-    include CurrentUser
-
-    protect_from_forgery prepend: true
-    protect_from_forgery with: :exception
+  class CheckoutController < ApplicationController
 
     skip_before_action :verify_authenticity_token, only: [:create]
 
@@ -15,11 +11,10 @@ module DiscourseDonations
 
       output = { 'messages' => [], 'rewards' => [] }
       payment = DiscourseDonations::Stripe.new(secret_key, stripe_options)
+      user = current_user || nil
 
       begin
-        charge = payment.checkoutCharge(user_params[:stripeEmail],
-                                        user_params[:stripeToken],
-                                        user_params[:amount])
+        charge = payment.checkoutCharge(user, user_params[:stripeEmail], user_params[:stripeToken], user_params[:amount])
       rescue ::Stripe::CardError => e
         err = e.json_body[:error]
 
@@ -28,20 +23,19 @@ module DiscourseDonations
         output['messages'] << "Decline code: #{err[:decline_code]}" if err[:decline_code]
         output['messages'] << "Message: #{err[:message]}" if err[:message]
 
-        render(:json => output) and return
+        render(json: output) && (return)
       end
 
       if charge['paid']
-        output['messages'] << I18n.t('donations.payment.success')
+        output['messages'] << I18n.l(Time.now(), format: :long) + ': ' + I18n.t('donations.payment.success')
         output['rewards'] << { type: :group, name: group_name } if group_name
         output['rewards'] << { type: :badge, name: badge_name } if badge_name
       end
 
-      render :json => output
+      render json: output
     end
 
     private
-
 
     def reward?(payment)
       payment.present? && payment.successful?
@@ -61,9 +55,11 @@ module DiscourseDonations
 
     def user_params
       params.permit(:amount,
+                    :email,
                     :stripeToken,
                     :stripeTokenType,
                     :stripeEmail,
+                    :stripeCustomerId,
                     :stripeBillingName,
                     :stripeBillingAddressLine1,
                     :stripeBillingAddressZip,
@@ -78,7 +74,6 @@ module DiscourseDonations
                     :stripeShippingAddressCity,
                     :stripeShippingAddressCountry,
                     :stripeShippingAddressCountryCode
-
       )
     end
 

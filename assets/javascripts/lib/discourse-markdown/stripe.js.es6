@@ -3,7 +3,7 @@ function validationErrors(tagInfo, content, siteSettings) {
     if (!siteSettings.discourse_donations_public_key) { errors.push("missing key (site setting)"); }
     if (!siteSettings.discourse_donations_currency) { errors.push("missing currency (site setting)"); }
     if (!siteSettings.discourse_donations_shop_name) { errors.push("missing name (site setting)"); }
-    if (!siteSettings.discourse_donations_hide_zip_code) { errors.push("missing zip code toggle (site setting)"); }
+    if (!siteSettings.discourse_donations_zip_code) { errors.push("missing zip code toggle (site setting)"); }
     if (!siteSettings.discourse_donations_billing_address) { errors.push("missing billing address toggle (site setting)"); }
     if (!tagInfo.attrs['amount']) { errors.push("missing amount"); }
     if (!content) { errors.push("missing description"); }
@@ -16,7 +16,7 @@ function replaceWithStripeOrError(siteSettings) {
         if (errors.length) {
             displayErrors(state, errors);
         } else {
-            insertCheckout(state, tagInfo, content, siteSettings);
+            insertCheckout(state, tagInfo, content);
         }
         return true;
     };
@@ -30,29 +30,22 @@ function displayErrors(state, errors) {
     state.push('div-close', 'div', -1);
 }
 
-function insertCheckout(state, tagInfo, content, siteSettings) {
+function insertCheckout(state, tagInfo, content) {
     let token = state.push('stripe-checkout-form-open', 'form', 1);
-    token.attrs = [['method', 'POST'], ['action', '/checkout']];
-
-    token = state.push('stripe-checkout-form-amount', 'input', 0);
-    token.attrs = [['type', 'hidden'], ['name', 'amount'], ['value', tagInfo.attrs['amount']]];
-
-    token = state.push('stripe-checkout-script-open', 'script', 0);
     token.attrs = [
-        ['src', 'https://checkout.stripe.com/checkout.js'],
-        ['class', 'stripe-button'],
-        ['data-key', siteSettings.discourse_donations_public_key],
-        ['data-amount', tagInfo.attrs['amount']],
-        ['data-name', siteSettings.discourse_donations_shop_name],
-        ['data-description', content],
-        ['data-image', tagInfo.attrs['image'] || ''],
-        ['data-locale', 'auto'],
-        ['data-zip-code', !siteSettings.discourse_donations_hide_zip_code],
-        ['data-billing-address', siteSettings.discourse_donations_billing_address],
-        ['data-currency', siteSettings.discourse_donations_currency]
+      ['method', 'POST'],
+      ['action', '/checkout'],
+      ['content', content],
+      ['image', tagInfo.attrs['image']],
+      ['class', 'stripe-checkout']
     ];
 
-    state.push('stripe-checkout-script-close', 'script', -1);
+    token = state.push('stripe-checkout-form-amount', 'input', 0);
+    token.attrs = [
+      ['type', 'hidden'],
+      ['name', 'amount'],
+      ['value', tagInfo.attrs['amount']]
+    ];
 
     state.push('stripe-checkout-form-close', 'form', -1);
 }
@@ -72,6 +65,9 @@ export function setup(helper) {
             'div[class]',
             'form[method]',
             'form[action]',
+            'form[class]',
+            'form[content]',
+            'form[image]',
             'input[type]',
             'input[name]',
             'input[value]',
